@@ -34,6 +34,10 @@ pub enum JwtError {
     X5cPublicKeyDenied,
     /// Private key export denied
     PrivateKeyDenied,
+    /// Invalid JWK
+    InvalidJwk,
+    /// Unsupported algorithm
+    UnsupportedAlgorithm,
 }
 
 impl fmt::Display for JwtError {

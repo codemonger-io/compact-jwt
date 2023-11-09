@@ -4,14 +4,14 @@ use crate::crypto::{Jwk, JwsCompact};
 #[cfg(feature = "openssl")]
 use crate::crypto::{JwsInner, JwsSigner, JwsValidator};
 #[cfg(feature = "openssl")]
-use openssl::x509;
-#[cfg(feature = "openssl")]
 use url::Url;
 
 use crate::error::JwtError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
+#[cfg(feature = "openssl")]
+use x509_cert::certificate::Certificate;
 
 /// An unverified jws input which is ready to validate
 #[derive(Debug)]
@@ -184,12 +184,12 @@ impl JwsUnverified {
     }
 
     /// Get the embedded public key used to sign this jwt, if present.
-    pub fn get_x5c_pubkey(&self) -> Result<Option<x509::X509>, JwtError> {
+    pub fn get_x5c_pubkey(&self) -> Result<Option<Certificate>, JwtError> {
         self.jwsc.get_x5c_pubkey()
     }
 
     /// Get the embedded certificate chain (if any) in DER forms
-    pub fn get_x5c_chain(&self) -> Result<Option<Vec<x509::X509>>, JwtError> {
+    pub fn get_x5c_chain(&self) -> Result<Option<Vec<Certificate>>, JwtError> {
         self.jwsc.get_x5c_chain()
     }
 }
