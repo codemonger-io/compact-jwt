@@ -1,16 +1,16 @@
 //! JWS Cryptographic Operations
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use std::convert::TryFrom;
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use const_oid::db::rfc5912::{
     ECDSA_WITH_SHA_256,
     SHA_256_WITH_RSA_ENCRYPTION,
 };
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use hmac::{Hmac, Mac as _};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use p256::{
     EncodedPoint,
     ecdsa::{
@@ -21,11 +21,11 @@ use p256::{
     },
     pkcs8::{DecodePrivateKey, EncodePrivateKey},
 };
-#[cfg(all(test, feature = "openssl"))]
+#[cfg(all(test, feature = "secure"))]
 use p256::NonZeroScalar;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use rand_core::{OsRng, RngCore as _};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use ::rsa::{
     BigUint,
     RsaPublicKey,
@@ -38,12 +38,12 @@ use ::rsa::{
     traits::PublicKeyParts,
 };
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use sha2::{Digest as _, Sha256};
 use std::fmt;
 use std::str::FromStr;
 use url::Url;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use x509_cert::{
     certificate::Certificate,
     der::{
@@ -55,9 +55,9 @@ use x509_cert::{
 use crate::error::JwtError;
 use base64urlsafedata::Base64UrlSafeData;
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 const RSA_MIN_SIZE: usize = 3072;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 const RSA_SIG_SIZE: usize = 384;
 
 // https://datatracker.ietf.org/doc/html/rfc7515
@@ -146,7 +146,7 @@ pub enum JwaAlg {
 
 /// A private key and associated information that can sign Oidc and Jwt data.
 #[derive(Clone)]
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 pub enum JwsSigner {
     /// Eliptic Curve P-256
     ES256 {
@@ -171,7 +171,7 @@ pub enum JwsSigner {
     },
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl std::cmp::PartialEq for JwsSigner {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -189,10 +189,10 @@ impl std::cmp::PartialEq for JwsSigner {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl std::cmp::Eq for JwsSigner {}
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl std::hash::Hash for JwsSigner {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -205,7 +205,7 @@ impl std::hash::Hash for JwsSigner {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl fmt::Debug for JwsSigner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -227,7 +227,7 @@ impl fmt::Debug for JwsSigner {
 
 /// A public key with associated information that can validate the signatures of Oidc and Jwt data.
 #[derive(Clone)]
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 pub enum JwsValidator {
     /// Eliptic Curve P-256
     ES256 {
@@ -252,14 +252,14 @@ pub enum JwsValidator {
     },
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl fmt::Debug for JwsValidator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("JwsValidator").finish()
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsValidator {
     /// Get the KID of this validator if present
     pub fn get_jwk_kid(&self) -> Option<&str> {
@@ -308,7 +308,7 @@ pub(crate) struct JwsCompact {
     header: ProtectedHeader,
     payload: Vec<u8>,
     signature: Vec<u8>,
-    #[cfg(feature = "openssl")]
+    #[cfg(feature = "secure")]
     sign_input: Vec<u8>,
 }
 
@@ -349,7 +349,7 @@ pub(crate) struct JwsInner {
     payload: Vec<u8>,
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsInner {
     pub fn new(payload: Vec<u8>) -> Self {
         JwsInner {
@@ -379,7 +379,7 @@ impl JwsInner {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsInner {
     #[cfg(test)]
     pub fn sign_embed_public_jwk(&self, signer: &JwsSigner) -> Result<JwsCompact, JwtError> {
@@ -547,14 +547,14 @@ impl JwsInner {
     }
 }
 
-#[cfg(any(feature = "openssl", feature = "unsafe_release_without_verify"))]
+#[cfg(any(feature = "secure", feature = "unsafe_release_without_verify"))]
 impl JwsInner {
     pub(crate) fn payload(&self) -> &[u8] {
         &self.payload
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsCompact {
     #[cfg(test)]
     fn check_vectors(&self, chk_input: &[u8], chk_sig: &[u8]) -> bool {
@@ -889,7 +889,7 @@ impl FromStr for JwsCompact {
             JwtError::InvalidBase64
         })?;
 
-        #[cfg(feature = "openssl")]
+        #[cfg(feature = "secure")]
         let sign_input = {
             let (data_input, _) = s.rsplit_once(".").ok_or_else(|| {
                 debug!("invalid compact format - unable to parse sign input");
@@ -903,7 +903,7 @@ impl FromStr for JwsCompact {
             header,
             payload,
             signature,
-            #[cfg(feature = "openssl")]
+            #[cfg(feature = "secure")]
             sign_input,
         })
     }
@@ -923,7 +923,7 @@ impl fmt::Display for JwsCompact {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl TryFrom<&Jwk> for JwsValidator {
     type Error = JwtError;
 
@@ -1023,7 +1023,7 @@ impl TryFrom<&Jwk> for JwsValidator {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl TryFrom<Certificate> for JwsValidator {
     type Error = JwtError;
 
@@ -1085,7 +1085,7 @@ impl TryFrom<Certificate> for JwsValidator {
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsSigner {
     #[cfg(test)]
     pub fn from_es256_jwk_components(x: &str, y: &str, d: &str) -> Result<Self, JwtError> {
@@ -1621,7 +1621,7 @@ impl JwsSigner {
     }
 }
 
-#[cfg(all(feature = "openssl", test))]
+#[cfg(all(feature = "secure", test))]
 mod tests {
     use super::{Jwk, JwsCompact, JwsInner, JwsSigner, JwsValidator};
     use std::convert::TryFrom;

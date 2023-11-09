@@ -2,9 +2,9 @@
 
 use crate::btreemap_empty;
 use crate::crypto::{Jwk, JwsCompact};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use crate::crypto::{JwsInner, JwsSigner, JwsValidator};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use url::Url;
 
 use crate::error::JwtError;
@@ -115,7 +115,7 @@ where
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl<V> Jwt<V>
 where
     V: Clone + Serialize,
@@ -150,7 +150,7 @@ where
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwtUnverified {
     /// Using this JwsValidator, assert the correct signature of the data contained in
     /// this jwt.
@@ -207,7 +207,7 @@ impl fmt::Display for JwtSigned {
     }
 }
 
-#[cfg(all(feature = "openssl", test))]
+#[cfg(all(feature = "secure", test))]
 mod tests {
     use super::{Jwt, JwtUnverified};
     use crate::crypto::{JwsSigner, JwsValidator};

@@ -11,7 +11,7 @@
 //!
 //! # Examples
 //! ```
-//! # #[cfg(feature = "openssl")]
+//! # #[cfg(feature = "secure")]
 //! # {
 //! use std::str::FromStr;
 //! use std::convert::TryFrom;
@@ -83,7 +83,7 @@ pub mod jwt;
 pub mod oidc;
 
 pub use crate::crypto::{JwaAlg, Jwk, JwkKeySet, JwkUse};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 pub use crate::crypto::{JwsSigner, JwsValidator};
 pub use crate::error::JwtError;
 pub use crate::jws::{Jws, JwsSigned, JwsUnverified};

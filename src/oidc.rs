@@ -1,7 +1,7 @@
 //! Oidc token implementation
 
 use crate::crypto::JwsCompact;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use crate::crypto::{JwsInner, JwsSigner, JwsValidator};
 use crate::error::JwtError;
 use crate::{btreemap_empty, vec_empty};
@@ -113,7 +113,7 @@ pub struct OidcToken {
     pub claims: BTreeMap<String, serde_json::value::Value>,
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl OidcToken {
     fn sign_inner(&self, signer: &JwsSigner, kid: Option<&str>) -> Result<OidcSigned, JwtError> {
         // We need to convert this payload to a set of bytes.
@@ -160,7 +160,7 @@ impl OidcToken {
     */
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl OidcUnverified {
     /// Using this JwsValidator, assert the correct signature of the data contained in
     /// this token. The current time is represented by seconds since the epoch. You may
@@ -233,7 +233,7 @@ impl fmt::Display for OidcSigned {
     }
 }
 
-#[cfg(all(feature = "openssl", test))]
+#[cfg(all(feature = "secure", test))]
 mod tests {
     use super::{OidcSubject, OidcToken, OidcUnverified};
     use crate::crypto::{JwsSigner, JwsValidator};

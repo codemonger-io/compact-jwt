@@ -1,16 +1,16 @@
 //! Jws Implementation
 
 use crate::crypto::{Jwk, JwsCompact};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use crate::crypto::{JwsInner, JwsSigner, JwsValidator};
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use url::Url;
 
 use crate::error::JwtError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 use x509_cert::certificate::Certificate;
 
 /// An unverified jws input which is ready to validate
@@ -92,7 +92,7 @@ where
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl<V> Jws<V>
 where
     V: Clone + Serialize,
@@ -140,7 +140,7 @@ where
     }
 }
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "secure")]
 impl JwsUnverified {
     /// Using this JwsValidator, assert the correct signature of the data contained in
     /// this jwt.
@@ -245,7 +245,7 @@ impl fmt::Display for JwsSigned {
     }
 }
 
-#[cfg(all(feature = "openssl", test))]
+#[cfg(all(feature = "secure", test))]
 mod tests {
     use super::Jws;
     use crate::crypto::{JwsSigner, JwsValidator};
