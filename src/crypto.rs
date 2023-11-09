@@ -1,7 +1,7 @@
 //! JWS Cryptographic Operations
 
 #[cfg(feature = "openssl")]
-use openssl::{hash, nid};
+use openssl::hash;
 #[cfg(feature = "openssl")]
 use std::convert::TryFrom;
 
@@ -957,9 +957,11 @@ impl TryFrom<&Jwk> for JwsValidator {
                 use_: _,
                 kid,
             } => {
+                let digest = hash::MessageDigest::sha256();
+                /*
                 let (_curve, digest) = match crv {
                     EcCurve::P256 => (nid::Nid::X9_62_PRIME256V1, hash::MessageDigest::sha256()),
-                };
+                }; */
                 /*
                 let ec_group = ec::EcGroup::from_curve_name(curve).map_err(|e| {
                     debug!(?e);
@@ -1328,12 +1330,17 @@ impl JwsSigner {
     pub fn from_es256_der(der: &[u8]) -> Result<Self, JwtError> {
         let digest = hash::MessageDigest::sha256();
 
+        let mut hashout = Sha256::new();
+        hashout.update(der);
+        let kid = hashout.finalize().to_vec();
+        let kid = hex::encode(kid);
+        /*
         let kid = hash::hash(digest, der)
             .map(|hashout| hex::encode(hashout))
             .map_err(|e| {
                 debug!(?e);
                 JwtError::OpenSSLError
-            })?;
+            })?; */
 
         let skey = P256SigningKey::from_pkcs8_der(der)
             .map_err(|e| {
@@ -1353,12 +1360,17 @@ impl JwsSigner {
     pub fn from_rs256_der(der: &[u8]) -> Result<Self, JwtError> {
         let digest = hash::MessageDigest::sha256();
 
+        let mut hashout = Sha256::new();
+        hashout.update(der);
+        let kid = hashout.finalize().to_vec();
+        let kid = hex::encode(kid);
+        /*
         let kid = hash::hash(digest, der)
             .map(|hashout| hex::encode(hashout))
             .map_err(|e| {
                 debug!(?e);
                 JwtError::OpenSSLError
-            })?;
+            })?; */
 
         /*
         let skey = rsa::Rsa::private_key_from_der(der).map_err(|e| {
