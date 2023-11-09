@@ -36,6 +36,8 @@ pub enum JwtError {
     PrivateKeyDenied,
     /// Invalid JWK
     InvalidJwk,
+    /// Any signer error
+    SignerError,
     /// Unsupported algorithm
     UnsupportedAlgorithm,
 }

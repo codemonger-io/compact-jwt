@@ -13,7 +13,7 @@ license = "MPL-2.0"
 [features]
 unsafe_release_without_verify = []
 default = ["openssl"]
-openssl = ["dep:openssl", "const-oid", "p256", "rsa", "sha2", "x509-cert"]
+openssl = ["dep:openssl", "const-oid", "p256", "rand_core", "rsa", "sha2", "x509-cert"]
 
 [dependencies]
 serde = { version = "^1.0.136", features = ["derive"] }
@@ -31,6 +31,7 @@ x509-cert = { version = "0.2", optional = true }
 const-oid = { version = "0.9", features = ["db"], optional = true }
 rsa = { version = "0.9", optional = true }
 sha2 = { version = "0.10", features = ["oid"], optional = true }
+rand_core = { version = "0.6", features = ["getrandom"], optional = true }
 
 [dev-dependencies]
 tracing-subscriber = "^0.3.11"

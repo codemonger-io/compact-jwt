@@ -1,7 +1,7 @@
 //! JWS Cryptographic Operations
 
 #[cfg(feature = "openssl")]
-use openssl::{bn, ec, ecdsa, hash, nid, pkey, rand, rsa, sign};
+use openssl::{hash, nid, pkey, rand, rsa, sign};
 #[cfg(feature = "openssl")]
 use std::convert::TryFrom;
 
@@ -15,11 +15,14 @@ use p256::{
     EncodedPoint,
     ecdsa::{
         Signature as P256Signature,
+        SigningKey as P256SigningKey,
         VerifyingKey as P256VerifyingKey,
-        signature::DigestVerifier,
+        signature::{DigestSigner, DigestVerifier},
     },
-    pkcs8::DecodePublicKey,
+    pkcs8::{DecodePrivateKey, EncodePrivateKey},
 };
+#[cfg(all(test, feature = "openssl"))]
+use p256::NonZeroScalar;
 #[cfg(feature = "openssl")]
 use ::rsa::{
     BigUint,
@@ -146,7 +149,7 @@ pub enum JwsSigner {
         /// The KID of this signer. This is the sha256 digest of the key.
         kid: String,
         /// Private Key
-        skey: ec::EcKey<pkey::Private>,
+        skey: P256SigningKey,
         /// The matching digest.
         digest: hash::MessageDigest,
     },
@@ -444,8 +447,20 @@ impl JwsInner {
             JwsSigner::ES256 {
                 kid: _,
                 skey,
-                digest,
+                digest: _,
             } => {
+                let mut hashout = Sha256::new();
+                hashout.update(&sign_input);
+
+                let ec_sig: P256Signature = skey.try_sign_digest(hashout)
+                    .map_err(|e| {
+                        error!("failed to sign: {}", e);
+                        JwtError::SignerError
+                    })?;
+
+                ec_sig.to_vec()
+
+/*
                 let hashout = hash::hash(*digest, &sign_input).map_err(|e| {
                     debug!(?e);
                     JwtError::OpenSSLError
@@ -468,9 +483,11 @@ impl JwsInner {
                 // trace!("s {:?}", s);
 
                 let mut signature = Vec::with_capacity(64);
+                signature.extend_from_slice(ec_sig.as_slice());
                 signature.extend_from_slice(&r);
                 signature.extend_from_slice(&s);
                 signature
+                */
             }
             JwsSigner::RS256 {
                 kid: _,
@@ -1068,6 +1085,7 @@ impl JwsSigner {
             JwtError::InvalidBase64
         })?;
 
+        /*
         let xbn = bn::BigNum::from_slice(&x).map_err(|e| {
             debug!(?e);
             JwtError::OpenSSLError
@@ -1090,10 +1108,32 @@ impl JwsSigner {
             ec::EcKey::from_public_key_affine_coordinates(&ec_group, &xbn, &ybn).map_err(|e| {
                 debug!(?e);
                 JwtError::OpenSSLError
-            })?;
+            })?; */
 
         let digest = hash::MessageDigest::sha256();
 
+        let d = NonZeroScalar::try_from(d.as_slice()).unwrap();
+        let skey = P256SigningKey::from(d);
+
+        // verifies the public key
+        let pkey = skey.verifying_key();
+        let encoded_point = pkey.to_encoded_point(false);
+        assert_eq!(encoded_point.x().unwrap().as_slice(), x.as_slice());
+        assert_eq!(encoded_point.y().unwrap().as_slice(), y.as_slice());
+
+        let kid = skey.to_pkcs8_der()
+            .map_err(|e| {
+                error!("failed to encode ES256 private key to DER: {}", e);
+                JwtError::SignerError
+            })
+            .map(|der| {
+                let mut hashout = Sha256::new();
+                hashout.update(der.as_bytes());
+                let hashout = hashout.finalize();
+                hex::encode(hashout.as_slice())
+            })?;
+
+        /*
         let skey = ec::EcKey::from_private_components(&ec_group, &dbn, pkey.public_key()).map_err(
             |e| {
                 debug!(?e);
@@ -1110,7 +1150,7 @@ impl JwsSigner {
             .map_err(|e| {
                 debug!(?e);
                 JwtError::OpenSSLError
-            })?;
+            })?; */
 
         Ok(JwsSigner::ES256 { kid, skey, digest })
     }
@@ -1148,6 +1188,12 @@ impl JwsSigner {
     pub fn get_validator(&self) -> Result<JwsValidator, JwtError> {
         match self {
             JwsSigner::ES256 { kid, skey, digest } => {
+                Ok(JwsValidator::ES256 {
+                    kid: Some(kid.clone()),
+                    pkey: skey.verifying_key().clone(),
+                    digest: *digest,
+                })
+                /*
                 ec::EcKey::from_public_key(skey.group(), skey.public_key())
                     .map_err(|e| {
                         debug!(?e);
@@ -1170,7 +1216,7 @@ impl JwsSigner {
                             pkey,
                             digest: *digest,
                         })
-                    })
+                    }) */
             }
             JwsSigner::RS256 { kid, skey, digest } => {
                 let n = BigUint::from_bytes_be(&skey.n().to_vec());
@@ -1229,10 +1275,16 @@ impl JwsSigner {
                 JwtError::OpenSSLError
             })?;
 
+        let skey = P256SigningKey::from_pkcs8_der(der)
+            .map_err(|e| {
+                error!("invalid ES256 signing key DER: {}", e);
+                JwtError::SignerError
+            })?;
+        /*
         let skey = ec::EcKey::private_key_from_der(der).map_err(|e| {
             debug!(?e);
             JwtError::OpenSSLError
-        })?;
+        })?; */
 
         Ok(JwsSigner::ES256 { kid, skey, digest })
     }
@@ -1279,10 +1331,17 @@ impl JwsSigner {
                 kid: _,
                 skey,
                 digest: _,
-            } => skey.private_key_to_der().map_err(|e| {
-                debug!(?e);
-                JwtError::OpenSSLError
-            }),
+            } => skey.to_pkcs8_der()
+                .map_err(|e| {
+                    error!("failed to encode ES256 private key to DER: {}", e);
+                    JwtError::SignerError
+                })
+                .map(|d| {
+                    let d = d.as_bytes();
+                    let mut der: Vec<u8> = Vec::with_capacity(d.len());
+                    der.extend_from_slice(d);
+                    der
+                }),
             JwsSigner::RS256 {
                 kid: _,
                 skey,
@@ -1305,18 +1364,33 @@ impl JwsSigner {
     /// Create a new secure private key for signing
     pub fn generate_es256() -> Result<Self, JwtError> {
         let digest = hash::MessageDigest::sha256();
+        /*
         let ec_group = ec::EcGroup::from_curve_name(nid::Nid::X9_62_PRIME256V1)
             .map_err(|_| JwtError::OpenSSLError)?;
 
         let skey = ec::EcKey::generate(&ec_group).map_err(|_| JwtError::OpenSSLError)?;
 
-        skey.check_key().map_err(|_| JwtError::OpenSSLError)?;
+        skey.check_key().map_err(|_| JwtError::OpenSSLError)?; */
 
+        let skey = P256SigningKey::random(&mut rand_core::OsRng);
+
+        let kid = skey.to_pkcs8_der()
+            .map_err(|e| {
+                error!("failed to encode ES256 private key to DER: {}", e);
+                JwtError::SignerError
+            })
+            .map(|d| {
+                let mut hashout = Sha256::new();
+                hashout.update(d.as_bytes());
+                hex::encode(hashout.finalize().as_slice())
+            })?;
+
+        /*
         let kid = skey
             .private_key_to_der()
             .and_then(|der| hash::hash(digest, &der))
             .map(|hashout| hex::encode(hashout))
-            .map_err(|_| JwtError::OpenSSLError)?;
+            .map_err(|_| JwtError::OpenSSLError)?; */
 
         Ok(JwsSigner::ES256 { kid, skey, digest })
     }
@@ -1375,8 +1449,9 @@ impl JwsSigner {
                 skey,
                 digest: _,
             } => {
+                /*
                 let pkey = skey.public_key();
-                let ec_group = skey.group();
+                let ec_group = skey.group(); 
 
                 let mut bnctx = bn::BigNumContext::new().map_err(|e| {
                     debug!(?e);
@@ -1391,8 +1466,12 @@ impl JwsSigner {
                 let mut ybn = bn::BigNum::new().map_err(|e| {
                     debug!(?e);
                     JwtError::OpenSSLError
-                })?;
+                })?; */
 
+                let pkey = skey.verifying_key();
+                let encoded_point = pkey.to_encoded_point(false);
+
+                /*
                 pkey.affine_coordinates_gfp(ec_group, &mut xbn, &mut ybn, &mut bnctx)
                     .map_err(|e| {
                         debug!(?e);
@@ -1412,7 +1491,14 @@ impl JwsSigner {
                 x_fill.copy_from_slice(&xbnv);
 
                 let (_pad, y_fill) = public_key_y.split_at_mut(32 - ybnv.len());
-                y_fill.copy_from_slice(&ybnv);
+                y_fill.copy_from_slice(&ybnv); */
+
+                let public_key_x = encoded_point.x()
+                    .ok_or(JwtError::SignerError)?
+                    .to_vec();
+                let public_key_y = encoded_point.y()
+                    .ok_or(JwtError::SignerError)?
+                    .to_vec();
 
                 Ok(Jwk::EC {
                     crv: EcCurve::P256,
