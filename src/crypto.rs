@@ -1,8 +1,6 @@
 //! JWS Cryptographic Operations
 
 #[cfg(feature = "openssl")]
-use openssl::hash;
-#[cfg(feature = "openssl")]
 use std::convert::TryFrom;
 
 #[cfg(feature = "openssl")]
@@ -156,8 +154,6 @@ pub enum JwsSigner {
         kid: String,
         /// Private Key
         skey: P256SigningKey,
-        /// The matching digest.
-        digest: hash::MessageDigest,
     },
     /// RSASSA-PKCS1-v1_5 with SHA-256
     RS256 {
@@ -165,8 +161,6 @@ pub enum JwsSigner {
         kid: String,
         /// Private Key
         skey: RsaSigningKey<Sha256>,
-        /// The matching digest.
-        digest: hash::MessageDigest,
     },
     /// HMAC SHA256
     HS256 {
@@ -174,8 +168,6 @@ pub enum JwsSigner {
         kid: String,
         /// Private Key
         skey: Vec<u8>,
-        /// The matching digest
-        digest: hash::MessageDigest,
     },
 }
 
@@ -243,17 +235,13 @@ pub enum JwsValidator {
         kid: Option<String>,
         /// Public Key
         pkey: P256VerifyingKey,
-        /// The matching digest.
-        digest: hash::MessageDigest,
     },
     /// RSASSA-PKCS1-v1_5 with SHA-256
     RS256 {
         /// The KID of this validator
         kid: Option<String>,
         /// Public Key
-        pkey: RsaVerifyingKey<Sha256>, // TODO: other hash algorithms
-        /// The matching digest.
-        digest: hash::MessageDigest,
+        pkey: RsaVerifyingKey<Sha256>,
     },
     /// HMAC SHA256
     HS256 {
@@ -261,8 +249,6 @@ pub enum JwsValidator {
         kid: Option<String>,
         /// Private Key (Yes, this is correct)
         skey: Vec<u8>,
-        /// The matching digest.
-        digest: hash::MessageDigest,
     },
 }
 
@@ -453,7 +439,6 @@ impl JwsInner {
             JwsSigner::ES256 {
                 kid: _,
                 skey,
-                digest: _,
             } => {
                 let mut hashout = Sha256::new();
                 hashout.update(&sign_input);
@@ -498,7 +483,6 @@ impl JwsInner {
             JwsSigner::RS256 {
                 kid: _,
                 skey,
-                digest: _,
             } => {
                 let mut hashout = Sha256::new();
                 hashout.update(&sign_input);
@@ -533,7 +517,6 @@ impl JwsInner {
             JwsSigner::HS256 {
                 kid: _,
                 skey,
-                digest: _,
             } => {
                 let mut hmac = Hmac::<Sha256>::new_from_slice(skey.as_slice())
                     .map_err(|e| {
@@ -631,7 +614,6 @@ impl JwsCompact {
                 JwsValidator::ES256 {
                     kid: _,
                     pkey,
-                    digest: _,
                 },
                 JwaAlg::ES256,
             ) => {
@@ -698,7 +680,6 @@ impl JwsCompact {
                 JwsValidator::RS256 {
                     kid: _,
                     pkey,
-                    digest: _,
                 },
                 JwaAlg::RS256,
             ) => {
@@ -776,7 +757,6 @@ impl JwsCompact {
                 JwsValidator::HS256 {
                     kid: _,
                     skey,
-                    digest: _,
                 },
                 JwaAlg::HS256,
             ) => {
@@ -957,7 +937,6 @@ impl TryFrom<&Jwk> for JwsValidator {
                 use_: _,
                 kid,
             } => {
-                let digest = hash::MessageDigest::sha256();
                 /*
                 let (_curve, digest) = match crv {
                     EcCurve::P256 => (nid::Nid::X9_62_PRIME256V1, hash::MessageDigest::sha256()),
@@ -1002,7 +981,7 @@ impl TryFrom<&Jwk> for JwsValidator {
                 let kid = kid.clone();
 
                 Ok(match crv {
-                    EcCurve::P256 => JwsValidator::ES256 { kid, pkey, digest },
+                    EcCurve::P256 => JwsValidator::ES256 { kid, pkey },
                 })
             }
             Jwk::RSA {
@@ -1012,8 +991,6 @@ impl TryFrom<&Jwk> for JwsValidator {
                 use_: _,
                 kid,
             } => {
-                let digest = hash::MessageDigest::sha256();
-
 /*
                 let nbn = bn::BigNum::from_slice(&n.0).map_err(|e| {
                     debug!(?e);
@@ -1040,7 +1017,7 @@ impl TryFrom<&Jwk> for JwsValidator {
 
                 let kid = kid.clone();
 
-                Ok(JwsValidator::RS256 { kid, pkey, digest })
+                Ok(JwsValidator::RS256 { kid, pkey })
             }
         }
     }
@@ -1051,7 +1028,6 @@ impl TryFrom<Certificate> for JwsValidator {
     type Error = JwtError;
 
     fn try_from(value: Certificate) -> Result<Self, Self::Error> {
-        let digest = hash::MessageDigest::sha256();
         let public_key_info = value.tbs_certificate.subject_public_key_info
             .owned_to_ref();
         let validator = match &value.signature_algorithm.oid {
@@ -1064,7 +1040,6 @@ impl TryFrom<Certificate> for JwsValidator {
                 JwsValidator::ES256 {
                     kid: None,
                     pkey,
-                    digest,
                 }
             }
             &SHA_256_WITH_RSA_ENCRYPTION => {
@@ -1076,7 +1051,6 @@ impl TryFrom<Certificate> for JwsValidator {
                 JwsValidator::RS256 {
                     kid: None,
                     pkey,
-                    digest,
                 }
             }
             _ => return Err(JwtError::UnsupportedAlgorithm),
@@ -1154,8 +1128,6 @@ impl JwsSigner {
                 JwtError::OpenSSLError
             })?; */
 
-        let digest = hash::MessageDigest::sha256();
-
         let d = NonZeroScalar::try_from(d.as_slice()).unwrap();
         let skey = P256SigningKey::from(d);
 
@@ -1196,7 +1168,7 @@ impl JwsSigner {
                 JwtError::OpenSSLError
             })?; */
 
-        Ok(JwsSigner::ES256 { kid, skey, digest })
+        Ok(JwsSigner::ES256 { kid, skey })
     }
 
     #[cfg(test)]
@@ -1204,8 +1176,6 @@ impl JwsSigner {
         if buf.len() < 32 {
             return Err(JwtError::OpenSSLError);
         }
-
-        let digest = hash::MessageDigest::sha256();
 
         let mut hashout = Sha256::new();
         hashout.update(buf);
@@ -1228,7 +1198,7 @@ impl JwsSigner {
             JwtError::OpenSSLError
         })?; */
 
-        Ok(JwsSigner::HS256 { kid, skey, digest })
+        Ok(JwsSigner::HS256 { kid, skey })
     }
 
     /// Retrieve the Jwa alg that is in use
@@ -1243,11 +1213,10 @@ impl JwsSigner {
     /// Given this signer, retrieve the matching validator which can be paired with this.
     pub fn get_validator(&self) -> Result<JwsValidator, JwtError> {
         match self {
-            JwsSigner::ES256 { kid, skey, digest } => {
+            JwsSigner::ES256 { kid, skey } => {
                 Ok(JwsValidator::ES256 {
                     kid: Some(kid.clone()),
                     pkey: skey.verifying_key().clone(),
-                    digest: *digest,
                 })
                 /*
                 ec::EcKey::from_public_key(skey.group(), skey.public_key())
@@ -1274,11 +1243,10 @@ impl JwsSigner {
                         })
                     }) */
             }
-            JwsSigner::RS256 { kid, skey, digest } => {
+            JwsSigner::RS256 { kid, skey } => {
                 Ok(JwsValidator::RS256 {
                     kid: Some(kid.clone()),
                     pkey: skey.verifying_key(),
-                    digest: *digest,
                 })
                 /*
                 let n = BigUint::from_bytes_be(&skey.n().to_vec());
@@ -1318,18 +1286,15 @@ impl JwsSigner {
                         digest: *digest,
                     }) */
             }
-            JwsSigner::HS256 { kid, skey, digest } => Ok(JwsValidator::HS256 {
+            JwsSigner::HS256 { kid, skey } => Ok(JwsValidator::HS256 {
                 kid: Some(kid.clone()),
                 skey: skey.clone(),
-                digest: *digest,
             }),
         }
     }
 
     /// Restore this JwsSigner from a DER private key.
     pub fn from_es256_der(der: &[u8]) -> Result<Self, JwtError> {
-        let digest = hash::MessageDigest::sha256();
-
         let mut hashout = Sha256::new();
         hashout.update(der);
         let kid = hashout.finalize().to_vec();
@@ -1353,13 +1318,11 @@ impl JwsSigner {
             JwtError::OpenSSLError
         })?; */
 
-        Ok(JwsSigner::ES256 { kid, skey, digest })
+        Ok(JwsSigner::ES256 { kid, skey })
     }
 
     /// Restore this JwsSigner from a DER private key.
     pub fn from_rs256_der(der: &[u8]) -> Result<Self, JwtError> {
-        let digest = hash::MessageDigest::sha256();
-
         let mut hashout = Sha256::new();
         hashout.update(der);
         let kid = hashout.finalize().to_vec();
@@ -1384,7 +1347,7 @@ impl JwsSigner {
                 JwtError::InvalidJwt
             })?;
 
-        Ok(JwsSigner::RS256 { kid, skey, digest })
+        Ok(JwsSigner::RS256 { kid, skey })
     }
 
     /*
@@ -1409,7 +1372,6 @@ impl JwsSigner {
             JwsSigner::ES256 {
                 kid: _,
                 skey,
-                digest: _,
             } => skey.to_pkcs8_der()
                 .map_err(|e| {
                     error!("failed to encode ES256 private key to DER: {}", e);
@@ -1424,7 +1386,6 @@ impl JwsSigner {
             JwsSigner::RS256 {
                 kid: _,
                 skey,
-                digest: _,
             } => skey.to_pkcs8_der()
                 .map_err(|e| {
                     error!("failed to encode RS256 private key to DER: {}", e);
@@ -1439,7 +1400,6 @@ impl JwsSigner {
             JwsSigner::HS256 {
                 kid: _,
                 skey: _,
-                digest: _,
             } => {
                 debug!("unable to release hs256 private key");
                 Err(JwtError::PrivateKeyDenied)
@@ -1449,7 +1409,6 @@ impl JwsSigner {
 
     /// Create a new secure private key for signing
     pub fn generate_es256() -> Result<Self, JwtError> {
-        let digest = hash::MessageDigest::sha256();
         /*
         let ec_group = ec::EcGroup::from_curve_name(nid::Nid::X9_62_PRIME256V1)
             .map_err(|_| JwtError::OpenSSLError)?;
@@ -1478,13 +1437,11 @@ impl JwsSigner {
             .map(|hashout| hex::encode(hashout))
             .map_err(|_| JwtError::OpenSSLError)?; */
 
-        Ok(JwsSigner::ES256 { kid, skey, digest })
+        Ok(JwsSigner::ES256 { kid, skey })
     }
 
     /// Create a new secure private key for signing
     pub fn generate_hs256() -> Result<Self, JwtError> {
-        let digest = hash::MessageDigest::sha256();
-
         let mut skey = vec![0u8; 32];
         OsRng.fill_bytes(&mut skey);
         /*
@@ -1520,13 +1477,11 @@ impl JwsSigner {
             .map(|hashout| hex::encode(hashout))
             .map_err(|_| JwtError::OpenSSLError)?; */
 
-        Ok(JwsSigner::HS256 { kid, skey, digest })
+        Ok(JwsSigner::HS256 { kid, skey })
     }
 
     /// Create a new legacy (RSA) private key for signing
     pub fn generate_legacy_rs256() -> Result<Self, JwtError> {
-        let digest = hash::MessageDigest::sha256();
-
         let skey = RsaSigningKey::<Sha256>::random(&mut OsRng, RSA_MIN_SIZE)
             .map_err(|e| {
                 error!("failed to generate RSA private key: {}", e);
@@ -1555,7 +1510,7 @@ impl JwsSigner {
             .map(|hashout| hex::encode(hashout))
             .map_err(|_| JwtError::OpenSSLError)?; */
 
-        Ok(JwsSigner::RS256 { kid, skey, digest })
+        Ok(JwsSigner::RS256 { kid, skey })
     }
 
     /// Export the public key of this signer as a Jwk
@@ -1564,7 +1519,6 @@ impl JwsSigner {
             JwsSigner::ES256 {
                 kid,
                 skey,
-                digest: _,
             } => {
                 /*
                 let pkey = skey.public_key();
@@ -1629,7 +1583,6 @@ impl JwsSigner {
             JwsSigner::RS256 {
                 kid,
                 skey,
-                digest: _,
             } => {
                 let pkey = skey.verifying_key();
                 let pkey = pkey.as_ref();
@@ -1663,7 +1616,6 @@ impl JwsSigner {
             JwsSigner::HS256 {
                 kid: _,
                 skey: _,
-                digest: _,
             } => Err(JwtError::JwkPublicKeyDenied),
         }
     }
