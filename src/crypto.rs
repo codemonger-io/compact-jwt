@@ -1,7 +1,7 @@
 //! JWS Cryptographic Operations
 
 #[cfg(feature = "openssl")]
-use openssl::{hash, nid, pkey, rand, sign};
+use openssl::{hash, nid};
 #[cfg(feature = "openssl")]
 use std::convert::TryFrom;
 
@@ -10,6 +10,8 @@ use const_oid::db::rfc5912::{
     ECDSA_WITH_SHA_256,
     SHA_256_WITH_RSA_ENCRYPTION,
 };
+#[cfg(feature = "openssl")]
+use hmac::{Hmac, Mac as _};
 #[cfg(feature = "openssl")]
 use p256::{
     EncodedPoint,
@@ -23,6 +25,8 @@ use p256::{
 };
 #[cfg(all(test, feature = "openssl"))]
 use p256::NonZeroScalar;
+#[cfg(feature = "openssl")]
+use rand_core::{OsRng, RngCore as _};
 #[cfg(feature = "openssl")]
 use ::rsa::{
     BigUint,
@@ -169,7 +173,7 @@ pub enum JwsSigner {
         /// The KID of this signer. This is the sha256 digest of the key.
         kid: String,
         /// Private Key
-        skey: pkey::PKey<pkey::Private>,
+        skey: Vec<u8>,
         /// The matching digest
         digest: hash::MessageDigest,
     },
@@ -256,7 +260,7 @@ pub enum JwsValidator {
         /// The KID of this validator
         kid: Option<String>,
         /// Private Key (Yes, this is correct)
-        skey: pkey::PKey<pkey::Private>,
+        skey: Vec<u8>,
         /// The matching digest.
         digest: hash::MessageDigest,
     },
@@ -529,8 +533,16 @@ impl JwsInner {
             JwsSigner::HS256 {
                 kid: _,
                 skey,
-                digest,
+                digest: _,
             } => {
+                let mut hmac = Hmac::<Sha256>::new_from_slice(skey.as_slice())
+                    .map_err(|e| {
+                        error!("failed to create HMAC signer: {}", e);
+                        JwtError::SignerError
+                    })?;
+                hmac.update(&sign_input);
+                hmac.finalize().into_bytes().to_vec()
+                /*
                 let mut signer = sign::Signer::new(*digest, skey).map_err(|e| {
                     debug!(?e);
                     JwtError::OpenSSLError
@@ -539,7 +551,7 @@ impl JwsInner {
                 signer.sign_oneshot_to_vec(&sign_input).map_err(|e| {
                     debug!(?e);
                     JwtError::OpenSSLError
-                })?
+                })? */
             }
         };
 
@@ -764,10 +776,28 @@ impl JwsCompact {
                 JwsValidator::HS256 {
                     kid: _,
                     skey,
-                    digest,
+                    digest: _,
                 },
                 JwaAlg::HS256,
             ) => {
+                let mut hmac = Hmac::<Sha256>::new_from_slice(skey.as_slice())
+                    .map_err(|e| {
+                        error!("failed to create HMAC verifier: {}", e);
+                        JwtError::SignerError
+                    })?;
+                hmac.update(&self.sign_input);
+
+                match hmac.verify_slice(&self.signature) {
+                    Ok(()) => Ok(JwsInner {
+                        header: (&self.header).into(),
+                        payload: self.payload.clone(),
+                    }),
+                    Err(e) => {
+                        error!("failed to verify HMAC signature: {}", e);
+                        Err(JwtError::SignerError)
+                    }
+                }
+                /*
                 let mut signer = sign::Signer::new(*digest, skey).map_err(|e| {
                     debug!(?e);
                     JwtError::OpenSSLError
@@ -786,7 +816,7 @@ impl JwsCompact {
                 } else {
                     debug!("invalid signature");
                     Err(JwtError::InvalidSignature)
-                }
+                }*/
             }
             alg_request => {
                 debug!(?alg_request, "validator algorithm mismatch");
@@ -1175,14 +1205,26 @@ impl JwsSigner {
 
         let digest = hash::MessageDigest::sha256();
 
+        let mut hashout = Sha256::new();
+        hashout.update(buf);
+        let kid = hashout.finalize().to_vec();
+        let kid = hex::encode(kid);
+        /*
         let kid = hash::hash(digest, buf)
             .map(|hashout| hex::encode(hashout))
-            .map_err(|_| JwtError::OpenSSLError)?;
+            .map_err(|_| JwtError::OpenSSLError)?; */
 
+        if let Err(e) = Hmac::<Sha256>::new_from_slice(buf) {
+            error!("failed to create HMAC signer: {}", e);
+            return Err(JwtError::SignerError);
+        }
+        let mut skey = Vec::with_capacity(buf.len());
+        skey.extend_from_slice(&buf);
+        /*
         let skey = pkey::PKey::hmac(buf).map_err(|e| {
             error!("{:?}", e);
             JwtError::OpenSSLError
-        })?;
+        })?; */
 
         Ok(JwsSigner::HS256 { kid, skey, digest })
     }
@@ -1404,7 +1446,7 @@ impl JwsSigner {
 
         skey.check_key().map_err(|_| JwtError::OpenSSLError)?; */
 
-        let skey = P256SigningKey::random(&mut rand_core::OsRng);
+        let skey = P256SigningKey::random(&mut OsRng);
 
         let kid = skey.to_pkcs8_der()
             .map_err(|e| {
@@ -1431,27 +1473,40 @@ impl JwsSigner {
     pub fn generate_hs256() -> Result<Self, JwtError> {
         let digest = hash::MessageDigest::sha256();
 
-        let mut buf = [0; 32];
+        let mut skey = vec![0u8; 32];
+        OsRng.fill_bytes(&mut skey);
+        /*
         rand::rand_bytes(&mut buf).map_err(|e| {
             error!("{:?}", e);
             JwtError::OpenSSLError
-        })?;
+        })?; */
 
         // Can it become a pkey?
+        if let Err(e) = Hmac::<Sha256>::new_from_slice(&skey) {
+            error!("failed to create a HMAC signer: {}", e);
+            return Err(JwtError::SignerError);
+        }
+        /*
         let skey = pkey::PKey::hmac(&buf).map_err(|e| {
             error!("{:?}", e);
             JwtError::OpenSSLError
-        })?;
+        })?; */
 
-        let mut kid = [0; 32];
-        rand::rand_bytes(&mut kid).map_err(|e| {
+        let mut kid = [0u8; 32];
+        OsRng.fill_bytes(&mut kid);
+        let mut hashout = Sha256::new();
+        hashout.update(&kid);
+        let kid = hashout.finalize().to_vec();
+        let kid = hex::encode(kid);
+        /*
+        rand_bytes(&mut kid).map_err(|e| {
             error!("{:?}", e);
             JwtError::OpenSSLError
         })?;
 
         let kid = hash::hash(digest, &kid)
             .map(|hashout| hex::encode(hashout))
-            .map_err(|_| JwtError::OpenSSLError)?;
+            .map_err(|_| JwtError::OpenSSLError)?; */
 
         Ok(JwsSigner::HS256 { kid, skey, digest })
     }
@@ -1460,7 +1515,7 @@ impl JwsSigner {
     pub fn generate_legacy_rs256() -> Result<Self, JwtError> {
         let digest = hash::MessageDigest::sha256();
 
-        let skey = RsaSigningKey::<Sha256>::random(&mut rand_core::OsRng, RSA_MIN_SIZE)
+        let skey = RsaSigningKey::<Sha256>::random(&mut OsRng, RSA_MIN_SIZE)
             .map_err(|e| {
                 error!("failed to generate RSA private key: {}", e);
                 JwtError::SignerError
