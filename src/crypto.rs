@@ -1085,9 +1085,10 @@ impl JwsSigner {
 
 #[cfg(all(feature = "secure", test))]
 mod tests {
-    use super::{Jwk, JwsCompact, JwsInner, JwsSigner, JwsValidator};
+    use super::{Certificate, Jwk, JwsCompact, JwsInner, JwsSigner, JwsValidator};
     use std::convert::TryFrom;
     use std::str::FromStr;
+    use x509_cert::der::DecodePem;
 
     #[test]
     fn rfc7515_es256_validation_example() {
@@ -1337,5 +1338,57 @@ mod tests {
             .validate(&jws_validator)
             .expect("Unable to validate jws");
         trace!("rel -> {:?}", released);
+    }
+
+    #[test]
+    fn test_jws_validator_can_be_built_from_certificate_of_prime256v1() {
+        // openssl ecparam -out ec_key.pem -name prime256v1 -genkey
+        // openssl req -new -key ec_key.pem -x509 -days 365 -out cert.pem
+        let cert_pem = r#"-----BEGIN CERTIFICATE-----
+MIIB4DCCAYWgAwIBAgIULi9xlsQtHXNQ+FM92tLg7XHQbyAwCgYIKoZIzj0EAwIw
+RTELMAkGA1UEBhMCSlAxETAPBgNVBAgMCEthbmFnYXdhMRMwEQYDVQQKDApjb2Rl
+bW9uZ2VyMQ4wDAYDVQQDDAVLaWt1bzAeFw0yMzExMTAwNjMwMTFaFw0yNDExMDkw
+NjMwMTFaMEUxCzAJBgNVBAYTAkpQMREwDwYDVQQIDAhLYW5hZ2F3YTETMBEGA1UE
+CgwKY29kZW1vbmdlcjEOMAwGA1UEAwwFS2lrdW8wWTATBgcqhkjOPQIBBggqhkjO
+PQMBBwNCAAQk1nolzbMPGRpcpWl163gg4g0ZzQpNp+RMRSzQQm750way2mWkyBwR
+L0fqvOIx+SMsC4NKPFgt4q0YXf1W63uuo1MwUTAdBgNVHQ4EFgQUmvJWV9jWW09+
+9otLB7WPD0B4tA0wHwYDVR0jBBgwFoAUmvJWV9jWW09+9otLB7WPD0B4tA0wDwYD
+VR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEA4t7fHNbKado4cBZJc6UN
+o1sF+a+l+V3dc9SDu/UOQ7gCIQCxWOv91yQYb9qeTLvhAZQkUpaRvZB4YZK4nEe9
+6ACdUg==
+-----END CERTIFICATE-----"#;
+        let cert = Certificate::from_pem(cert_pem).unwrap();
+        let validator = JwsValidator::try_from(cert).unwrap();
+        assert!(matches!(validator, JwsValidator::ES256 { .. }));
+    }
+
+    #[test]
+    fn test_jws_validator_can_be_built_from_certificate_of_rsa_2048() {
+        // openssl genrsa -out rsa_key.pem 2048
+        // openssl req -new -key rsa_key.pem -x509 -days 365 -out cert.pem
+        let cert_pem = r#"-----BEGIN CERTIFICATE-----
+MIIDazCCAlOgAwIBAgIUOToRKDpmxdwGEm20x8Z6ydKqZwkwDQYJKoZIhvcNAQEL
+BQAwRTELMAkGA1UEBhMCSlAxETAPBgNVBAgMCEthbmFnYXdhMRMwEQYDVQQKDApj
+b2RlbW9uZ2VyMQ4wDAYDVQQDDAVLaWt1bzAeFw0yMzExMTAwNjM3MDBaFw0yNDEx
+MDkwNjM3MDBaMEUxCzAJBgNVBAYTAkpQMREwDwYDVQQIDAhLYW5hZ2F3YTETMBEG
+A1UECgwKY29kZW1vbmdlcjEOMAwGA1UEAwwFS2lrdW8wggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQDzWSL5nX5uK08h3tE7addr4XuqcUlWqw6LKyi1N/Ru
+6B5dKvdV/cRp8IZMkChrwOraLnBhvdkVieISUwhThApPVwwIBuEdSrG6MZ/q5uay
+Zpv8/0PhlFkdeXQqoHCrng4iEWzHVRVxytQNkfDWuoddbL2XLR4g6+R4dW29+aky
+i+Ouk1MFh7B5lhSBPtvqeMY0k44sLw+j/nUYuhp1aul+AfDC9feet1nw+6jiwtzh
+EFgm2N7gk5I2YB4sib7Qn6rgcTaMuDOyKLj5otih7GAR7aPLec9KzUFdIWAYdUNh
+SpYwwRRHlEuE/6lT4vV70Oxr5WLut0znBy6mB8bcxDzvAgMBAAGjUzBRMB0GA1Ud
+DgQWBBR8srw+Y/ulAEusOy0UBliH8Q0bVDAfBgNVHSMEGDAWgBR8srw+Y/ulAEus
+Oy0UBliH8Q0bVDAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQA+
+qRDpzkzGgA0FADAQHJ+l4sLLcPde4nkIVLMraIXF2SgEnH+z8IUaq8QFgGOkzf7i
+zJDHiGmD20jHLadKWp7BWi/X7sS5SkGpnkBe6Nn9kOKMozcLwjdAX8a7Ok2F8EmR
+qsY00NxRk8nED7BnTC3Ppw+GGvxsIlnm50iLmZRgo8hJU+uKNVN7wTgAEguDuE7z
+nsydZ+kCJI+RHpyURQDuI8nZ7vZXES9Buo1TIa/hXgzqBuCkUfLG61fhGNA1c5SR
+4mvOLglQcRUYTokJ3PQVNudmKf2VTRiRWGrO5hQGjIa9DVRfUp5c3pnUa7FPhqjX
+76JFauJl+rWTzn9OiIW+
+-----END CERTIFICATE-----"#;
+        let cert = Certificate::from_pem(cert_pem).unwrap();
+        let validator = JwsValidator::try_from(cert).unwrap();
+        assert!(matches!(validator, JwsValidator::RS256 { .. }));
     }
 }
