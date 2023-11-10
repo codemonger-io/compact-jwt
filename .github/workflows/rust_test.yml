@@ -4,7 +4,8 @@ name: "Rust Test"
 "on":
   push:
     branches:
-    - master
+    - main
+    - v0.2-wo-openssl
   pull_request:
 
 
