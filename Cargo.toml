@@ -1,10 +1,10 @@
 [package]
-name = "compact_jwt"
+name = "compact_jwt_wo_openssl"
 version = "0.2.9"
 edition = "2021"
-authors = ["William Brown <william@blackhats.net.au>"]
-description = "Minimal implementation of JWT for OIDC"
-repository = "https://github.com/kanidm/compact_jwt"
+authors = ["William Brown <william@blackhats.net.au>", "Kikuo Emoto <kemoto@codemonger.io>"]
+description = "Minimal implementation of JWT for OIDC without OpenSSL"
+repository = "https://github.com/codemonger-io/compact-jwt"
 readme = "README.md"
 keywords = ["jwt", "authentication"]
 categories = ["authentication", "web-programming"]

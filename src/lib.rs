@@ -17,7 +17,7 @@
 //! use std::convert::TryFrom;
 //! use std::time::SystemTime;
 //! use url::Url;
-//! use compact_jwt::{JwsValidator, JwsSigner, OidcToken, OidcSubject, OidcUnverified};
+//! use compact_jwt_wo_openssl::{JwsValidator, JwsSigner, OidcToken, OidcSubject, OidcUnverified};
 //!
 //! let oidc = OidcToken {
 //!         iss: Url::parse("https://oidc.example.com").unwrap(),
