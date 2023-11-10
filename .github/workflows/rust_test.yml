@@ -1,6 +1,6 @@
 name: "Rust Test"
 
-# Trigger the workflow on push to master or pull request
+# Trigger the workflow on push to main or v0.2-wo-openssl, or pull request
 "on":
   push:
     branches:
