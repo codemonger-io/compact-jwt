@@ -1,7 +1,7 @@
 Compact JWT without OpenSSL
 ===========================
 
-**☣☣ This fork is maintained by a [solo developer](https://github.com/kikuomax), neither verified nor validated independently.
+**&#x1F6D1;&#x1F6D1; This fork is maintained by a [solo developer](https://github.com/kikuomax), neither verified nor validated independently.
 I highly recommend you use the [original version](https://github.com/kanidm/compact-jwt).**
 
 Json Web Tokens (JWT) are a popular method for creating signed transparent tokens that can be verified
