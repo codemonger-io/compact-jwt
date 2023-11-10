@@ -1,5 +1,8 @@
-Compact JWT
-===========
+Compact JWT without OpenSSL
+===========================
+
+**☣☣ This fork is maintained by a [solo developer](https://github.com/kikuomax), neither verified nor validated independently.
+I highly recommend you use the [original version](https://github.com/kanidm/compact-jwt).**
 
 Json Web Tokens (JWT) are a popular method for creating signed transparent tokens that can be verified
 by clients and servers. They are enshrined in standards like OpenID Connect which causes them to
@@ -10,8 +13,10 @@ led to security issues. This library will not be a complete implementation of JW
 focusing on a minimal subset that can be secured and audited for correctness more closely within
 a limited set of use cases.
 
-When should I use this library?
--------------------------------
+When should I use this fork?
+----------------------------
+
+If you cannot depend on OpenSSL, this fork might be for you. **Use at your own risk.**
 
 If you wish to create ECDSA signed JWT tokens, or verify ECDSA signed JWT tokens, this library is for you.
 
@@ -27,10 +32,13 @@ There are already many other libraries for JWT on crates.io however they each ha
 or design that conflicts with the project goals in Kanidm. Examples are:
 
 * Incorrect Implementations - There are a number of JWT libraries in Rust that are incorrect to the RFC or do not have RFC vector tests
-* Ring as the sole cryptographic provider - we need to use OpenSSL
+* ~~Ring as the sole cryptographic provider - we need to use OpenSSL~~ not applicable to this fork
 * Only supporting RSA/Weak cryptographic algos - We want to use ECDSA
 * Full JWS implementation - As mentioned, JWS has a number of sharp edges like alg=none
 
 As a result, nothing "fit" what we wanted, so we are making another library.
 
+Acknowledgements
+----------------
 
+Special thanks to the [original author](https://github.com/Firstyear) and cotributors of [`compact-jwt`](https://github.com/kanidm/compact-jwt).
