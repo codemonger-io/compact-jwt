@@ -445,7 +445,7 @@ impl JwsInner {
 
                 let ec_sig: P256Signature = skey.try_sign_digest(hashout)
                     .map_err(|e| {
-                        error!("failed to sign: {}", e);
+                        debug!(?e, "ES256 signing");
                         JwtError::SignerError
                     })?;
                 ec_sig.to_vec()
@@ -459,7 +459,7 @@ impl JwsInner {
 
                 let signature = skey.try_sign_digest(hashout)
                     .map_err(|e| {
-                        error!("failed to sign with RSA private key: {}", e);
+                        debug!(?e, "RS256 signing");
                         JwtError::SignerError
                     })?;
                 signature.to_vec()
@@ -470,8 +470,8 @@ impl JwsInner {
             } => {
                 let mut hmac = Hmac::<Sha256>::new_from_slice(skey.as_slice())
                     .map_err(|e| {
-                        error!("failed to create HMAC signer: {}", e);
-                        JwtError::SignerError
+                        debug!(?e, "HMAC signing");
+                        JwtError::InvalidKey
                     })?;
                 hmac.update(&sign_input);
                 hmac.finalize().into_bytes().to_vec()
@@ -514,8 +514,8 @@ impl JwsCompact {
                     .map_err(|_| JwtError::InvalidBase64)
                     .and_then(|bytes| {
                         Certificate::from_der(&bytes).map_err(|e| {
-                            debug!(?e);
-                            JwtError::OpenSSLError
+                            debug!(?e, "x5c public key");
+                            JwtError::InvalidCertificate
                         })
                     })
             })
@@ -536,8 +536,8 @@ impl JwsCompact {
                     .map_err(|_| JwtError::InvalidBase64)
                     .and_then(|bytes| {
                         Certificate::from_der(&bytes).map_err(|e| {
-                            debug!(?e);
-                            JwtError::OpenSSLError
+                            debug!(?e, "x5c chain");
+                            JwtError::InvalidCertificate
                         })
                     })
             })
@@ -563,7 +563,7 @@ impl JwsCompact {
 
                 let sig = P256Signature::from_slice(&self.signature)
                     .map_err(|e| {
-                        error!("ES256 signature format error: {}", e);
+                        debug!(?e, "ES256 verifying");
                         JwtError::InvalidSignature
                     })?;
 
@@ -578,7 +578,7 @@ impl JwsCompact {
                         })
                     }
                     Err(e) => {
-                        error!("invalid signature: {}", e);
+                        debug!(?e, "ES256 verifying");
                         Err(JwtError::InvalidSignature)
                     }
                 }
@@ -597,7 +597,7 @@ impl JwsCompact {
 
                 let sig = RsaSignature::try_from(self.signature.as_ref())
                     .map_err(|e| {
-                        error!("invalid RSA signature: {}", e);
+                        debug!(?e, "RS256 verifying");
                         JwtError::InvalidSignature
                     })?;
 
@@ -612,7 +612,7 @@ impl JwsCompact {
                         })
                     }
                     Err(e) => {
-                        error!("invalid signature: {}", e);
+                        debug!(?e, "RS256 verifying");
                         Err(JwtError::InvalidSignature)
                     }
                 }
@@ -626,8 +626,8 @@ impl JwsCompact {
             ) => {
                 let mut hmac = Hmac::<Sha256>::new_from_slice(skey.as_slice())
                     .map_err(|e| {
-                        error!("failed to create HMAC verifier: {}", e);
-                        JwtError::SignerError
+                        debug!(?e, "HMAC verifying");
+                        JwtError::InvalidKey
                     })?;
                 hmac.update(&self.sign_input);
 
@@ -637,8 +637,8 @@ impl JwsCompact {
                         payload: self.payload.clone(),
                     }),
                     Err(e) => {
-                        error!("failed to verify HMAC signature: {}", e);
-                        Err(JwtError::SignerError)
+                        debug!(?e, "HMAC verifying");
+                        Err(JwtError::InvalidSignature)
                     }
                 }
             }
@@ -788,8 +788,8 @@ impl TryFrom<&Jwk> for JwsValidator {
                 );
                 let pkey = P256VerifyingKey::from_encoded_point(&encoded_point)
                     .map_err(|e| {
-                        error!("invalid encoded point in JWK: {}", e);
-                        JwtError::InvalidJwk
+                        debug!(?e, "ES256 private key from encoded point");
+                        JwtError::InvalidKey
                     })?;
 
                 let kid = kid.clone();
@@ -809,8 +809,8 @@ impl TryFrom<&Jwk> for JwsValidator {
                 let ebn = BigUint::from_bytes_be(e.as_ref());
                 let pkey = RsaPublicKey::new(nbn, ebn)
                     .map_err(|e| {
-                        error!("invalid RSA components in JWK: {}", e);
-                        JwtError::InvalidJwk
+                        debug!(?e, "RS256 private key from components");
+                        JwtError::InvalidKey
                     })?;
                 let pkey = RsaVerifyingKey::<Sha256>::new(pkey);
 
@@ -833,8 +833,8 @@ impl TryFrom<Certificate> for JwsValidator {
             &ECDSA_WITH_SHA_256 => {
                 let pkey = P256VerifyingKey::try_from(public_key_info)
                     .map_err(|e| {
-                        error!("invalid ES256 public key: {}", e);
-                        JwtError::InvalidJwt
+                        debug!(?e, "ES256 public key");
+                        JwtError::InvalidKey
                     })?;
                 JwsValidator::ES256 {
                     kid: None,
@@ -844,15 +844,21 @@ impl TryFrom<Certificate> for JwsValidator {
             &SHA_256_WITH_RSA_ENCRYPTION => {
                 let pkey = RsaVerifyingKey::<Sha256>::try_from(public_key_info)
                     .map_err(|e| {
-                        error!("invalid RS256 public key: {}", e);
-                        JwtError::InvalidJwt
+                        debug!(?e, "RS256 public key");
+                        JwtError::InvalidKey
                     })?;
                 JwsValidator::RS256 {
                     kid: None,
                     pkey,
                 }
             }
-            _ => return Err(JwtError::UnsupportedAlgorithm),
+            _ => {
+                debug!(
+                    "unsupported signature algorithm: {:?}",
+                    value.signature_algorithm.oid,
+                );
+                return Err(JwtError::InvalidKey);
+            }
         };
         Ok(validator)
     }
@@ -887,8 +893,8 @@ impl JwsSigner {
 
         let kid = skey.to_pkcs8_der()
             .map_err(|e| {
-                error!("failed to encode ES256 private key to DER: {}", e);
-                JwtError::SignerError
+                debug!(?e, "ES256 private key from secret number");
+                JwtError::InvalidKey
             })
             .map(|der| {
                 let mut hashout = Sha256::new();
@@ -903,7 +909,7 @@ impl JwsSigner {
     #[cfg(test)]
     pub fn from_hs256_raw(buf: &[u8]) -> Result<Self, JwtError> {
         if buf.len() < 32 {
-            return Err(JwtError::OpenSSLError);
+            return Err(JwtError::InvalidParameter);
         }
 
         let mut hashout = Sha256::new();
@@ -912,8 +918,8 @@ impl JwsSigner {
         let kid = hex::encode(kid);
 
         if let Err(e) = Hmac::<Sha256>::new_from_slice(buf) {
-            error!("failed to create HMAC signer: {}", e);
-            return Err(JwtError::SignerError);
+            debug!(?e, "HMAC generating");
+            return Err(JwtError::InvalidKey);
         }
         let mut skey = Vec::with_capacity(buf.len());
         skey.extend_from_slice(&buf);
@@ -961,8 +967,8 @@ impl JwsSigner {
 
         let skey = P256SigningKey::from_pkcs8_der(der)
             .map_err(|e| {
-                error!("invalid ES256 signing key DER: {}", e);
-                JwtError::SignerError
+                debug!(?e, "ES256 private key DER decoding");
+                JwtError::InvalidKey
             })?;
 
         Ok(JwsSigner::ES256 { kid, skey })
@@ -977,8 +983,8 @@ impl JwsSigner {
 
         let skey = RsaSigningKey::<Sha256>::from_pkcs8_der(der)
             .map_err(|e| {
-                error!("failed to decode RSA private key DER: {}", e);
-                JwtError::InvalidJwt
+                debug!(?e, "RS256 private key");
+                JwtError::InvalidKey
             })?;
 
         Ok(JwsSigner::RS256 { kid, skey })
@@ -1008,8 +1014,8 @@ impl JwsSigner {
                 skey,
             } => skey.to_pkcs8_der()
                 .map_err(|e| {
-                    error!("failed to encode ES256 private key to DER: {}", e);
-                    JwtError::SignerError
+                    debug!(?e, "ES256 private key DER encoding");
+                    JwtError::InvalidKey
                 })
                 .map(|d| {
                     let d = d.as_bytes();
@@ -1022,8 +1028,8 @@ impl JwsSigner {
                 skey,
             } => skey.to_pkcs8_der()
                 .map_err(|e| {
-                    error!("failed to encode RS256 private key to DER: {}", e);
-                    JwtError::SignerError
+                    debug!(?e, "RS256 private key DER encoding");
+                    JwtError::InvalidKey
                 })
                 .map(|d| {
                     let d = d.as_bytes();
@@ -1047,8 +1053,8 @@ impl JwsSigner {
 
         let kid = skey.to_pkcs8_der()
             .map_err(|e| {
-                error!("failed to encode ES256 private key to DER: {}", e);
-                JwtError::SignerError
+                debug!(?e, "ES256 private key generating");
+                JwtError::InvalidKey
             })
             .map(|d| {
                 let mut hashout = Sha256::new();
@@ -1066,8 +1072,8 @@ impl JwsSigner {
 
         // Can it become a pkey?
         if let Err(e) = Hmac::<Sha256>::new_from_slice(&skey) {
-            error!("failed to create a HMAC signer: {}", e);
-            return Err(JwtError::SignerError);
+            debug!(?e, "HMAC signer generating");
+            return Err(JwtError::InvalidKey);
         }
 
         let mut kid = [0u8; 32];
@@ -1084,14 +1090,14 @@ impl JwsSigner {
     pub fn generate_legacy_rs256() -> Result<Self, JwtError> {
         let skey = RsaSigningKey::<Sha256>::random(&mut OsRng, RSA_MIN_SIZE)
             .map_err(|e| {
-                error!("failed to generate RSA private key: {}", e);
-                JwtError::SignerError
+                debug!(?e, "RSA private key generating");
+                JwtError::InvalidKey
             })?;
 
         let kid = skey.to_pkcs8_der()
             .map_err(|e| {
-                error!("failed to encode RSA private key to DER: {}", e);
-                JwtError::SignerError
+                debug!(?e, "RSA private key generating");
+                JwtError::InvalidKey
             })
             .map(|der| {
                 let mut hashout = Sha256::new();
@@ -1114,10 +1120,10 @@ impl JwsSigner {
                 let encoded_point = pkey.to_encoded_point(false);
 
                 let public_key_x = encoded_point.x()
-                    .ok_or(JwtError::SignerError)?
+                    .ok_or(JwtError::InvalidKey)?
                     .to_vec();
                 let public_key_y = encoded_point.y()
-                    .ok_or(JwtError::SignerError)?
+                    .ok_or(JwtError::InvalidKey)?
                     .to_vec();
 
                 Ok(Jwk::EC {

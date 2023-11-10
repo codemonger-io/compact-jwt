@@ -16,30 +16,26 @@ pub enum JwtError {
     InvalidSignature,
     /// Invalid JWT content
     InvalidJwt,
+    /// Invalid certificate
+    InvalidCertificate,
+    /// Invalid public/private key
+    InvalidKey,
+    /// Invalid parameter
+    InvalidParameter,
     /// Invalid Critical Extension present
     CriticalExtension,
-    /// OpenSSL failure
-    OpenSSLError,
     /// Incorrect Algorithm for verification
     ValidatorAlgMismatch,
-    /// Invalid JWT Key ID
-    InvalidJwtKid,
     /// The Token has expired
     OidcTokenExpired,
     /// No embeded JWK is available
     EmbededJwkNotAvailable,
     /// Jwk public key export denied
     JwkPublicKeyDenied,
-    /// X5c public key's cert chain didn't validate
-    X5cPublicKeyDenied,
     /// Private key export denied
     PrivateKeyDenied,
-    /// Invalid JWK
-    InvalidJwk,
     /// Any signer error
     SignerError,
-    /// Unsupported algorithm
-    UnsupportedAlgorithm,
 }
 
 impl fmt::Display for JwtError {
