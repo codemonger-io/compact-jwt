@@ -13,7 +13,7 @@ use ::rsa::{
     BigUint, RsaPublicKey,
 };
 #[cfg(feature = "secure")]
-use const_oid::db::rfc5912::{ECDSA_WITH_SHA_256, SHA_256_WITH_RSA_ENCRYPTION};
+use const_oid::db::rfc5912::{ID_EC_PUBLIC_KEY, RSA_ENCRYPTION};
 #[cfg(feature = "secure")]
 use hmac::{Hmac, Mac as _};
 #[cfg(all(test, feature = "secure"))]
@@ -778,15 +778,15 @@ impl TryFrom<Certificate> for JwsValidator {
 
     fn try_from(value: Certificate) -> Result<Self, Self::Error> {
         let public_key_info = value.tbs_certificate.subject_public_key_info.owned_to_ref();
-        let validator = match &value.signature_algorithm.oid {
-            &ECDSA_WITH_SHA_256 => {
+        let validator = match &public_key_info.algorithm.oid {
+            &ID_EC_PUBLIC_KEY => {
                 let pkey = P256VerifyingKey::try_from(public_key_info).map_err(|e| {
                     debug!(?e, "ES256 public key");
                     JwtError::InvalidKey
                 })?;
                 JwsValidator::ES256 { kid: None, pkey }
             }
-            &SHA_256_WITH_RSA_ENCRYPTION => {
+            &RSA_ENCRYPTION => {
                 let pkey = RsaVerifyingKey::<Sha256>::try_from(public_key_info).map_err(|e| {
                     debug!(?e, "RS256 public key");
                     JwtError::InvalidKey
